@@ -5,6 +5,20 @@ from best-of compilations, remasters, or re-releases. Originally based on `beets
 entirely rewritten to actually work with MusicBrainz's incomplete information. The only thing left intact is
 the `recording_` MP3 tags, for compatibility with `beets-recordingdate`.
 
+# Patched behavior
+Mostly patched by ChatGPT5.5, this solves some of the issues I had with running this awesome plugin.
+I was seeing stalls and lockups, this is what I walked the LLM into fixing.
+This fork adds safer, more visible processing for large or incomplete MusicBrainz data:
+
+* Prints per-track progress while fetching works, recordings, and release dates. (as a setting if wanted)
+* Treats missing, zero, and implausibly old embedded years as unknown instead of allowing them to become year `0001`.
+* Preserves the oldest valid date found so far when a release scan reaches `max_scan_seconds`. (was stalling forever or quiting, this at least tries to pick the oldest)
+* Logs tracks skipped due to network, data, or processing failures to `oldestdate-skipped.txt` in Beetsâ€™ configured directory. (so you can go back and play with the settings later on some of the files)
+* Uses `max_related_recordings` as a scan limit: large works are processed up to the configured number of related recordings rather than skipped outright.
+* Handles partial MusicBrainz dates such as `2015-??-??` and `2015-07-??` without inventing missing month or day values.
+* Avoids crashing on mixed MusicBrainz artist-credit entries such as featured-artist separators.
+
+
 # Installation
 
 Simply run `pip install beets-oldestdate` then add `oldestdate` to the list of active plugins in beets and configure as
