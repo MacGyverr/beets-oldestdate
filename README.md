@@ -21,8 +21,19 @@ This fork adds safer, more visible processing for large or incomplete MusicBrain
 
 # Installation
 
+The plugin is intended to be used in singleton mode. Undefined behaviour may occur otherwise.
 Simply run `pip install beets-oldestdate` then add `oldestdate` to the list of active plugins in beets and configure as
-necessary. The plugin is intended to be used in singleton mode. Undefined behaviour may occur otherwise.
+necessary. 
+Then download this script and run the following:
+PLUGIN="/home/user/.local/pipx/venvs/beets/lib/python3.10/site-packages/beetsplug/oldestdate.py" `or whereever you have the original plugin installed to, this is a linux path`
+NEW="/home/user/Downloads/oldestdate.py" `or where you downloaded the .py of this updated script to`
+
+cp "$PLUGIN" "${PLUGIN}.before_patch"
+cp "$NEW" "$PLUGIN"
+
+python3 -m py_compile "$PLUGIN"
+beet version
+If it gives you a version, then it should work fine.
 
 # Configuration
 
