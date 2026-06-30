@@ -9,8 +9,10 @@ for large MusicBrainz works and intermittent network failures:
   * a per-track time limit that preserves the best oldest date found so far;
   * an append-only skipped-track log at <beets directory>/oldestdate-skipped.txt;
   * user-selected defaults for import-time matching and date overwrite behavior.
+  * tolerant handling of MusicBrainz partial dates such as 2015-??-13.
 
 It remains compatible with the older one-file beetsplug/oldestdate.py layout.
+
 It does reset the default settings to these, and adds new settings for preventing stalls and better monitoring.
 
 oldestdate:
@@ -40,6 +42,7 @@ oldestdate:
 
 import datetime
 import os
+import re
 import socket
 import threading
 import time
@@ -222,6 +225,73 @@ class DateWrapper(datetime.datetime):
                 return self.m == other.m and self.d == other.d
             return self.m == other.m
         return self.m == other.m
+
+
+# MusicBrainz sometimes stores partially known dates with ``??`` (and, in
+# older data, ``00``) for an unknown component. dateutil correctly rejects
+# those strings as invalid ISO dates, but the known portion is still useful.
+#
+# Important: do not invent a January 1 date from an unknown month. For example
+# ``2015-??-13`` is treated as ``2015`` rather than ``2015-01-13``. The day
+# cannot be meaningful without a month. DateWrapper's comparison methods then
+# treat that as a year-only, conservative candidate.
+_PARTIAL_MB_DATE_RE = re.compile(
+    r'^\s*(?P<year>\d{4})(?:-(?P<month>\d{2}|\?\?)(?:-(?P<day>\d{2}|\?\?))?)?\s*$'
+)
+
+
+def _parse_musicbrainz_date(value):
+    """Return a DateWrapper for a valid or partially-known MusicBrainz date.
+
+    Returns None for dates with no usable year or genuinely invalid numeric
+    components. The caller can silently ignore those entries instead of
+    treating malformed MusicBrainz metadata as an import error.
+    """
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # Preserve the normal parser for complete, ordinary ISO dates.
+    try:
+        return DateWrapper(iso_string=text)
+    except (TypeError, ValueError, OverflowError):
+        pass
+
+    match = _PARTIAL_MB_DATE_RE.match(text)
+    if not match:
+        return None
+
+    year = int(match.group('year'))
+    if not datetime.MINYEAR <= year <= datetime.MAXYEAR:
+        return None
+
+    month_text = match.group('month')
+    day_text = match.group('day')
+
+    if month_text in (None, '??', '00'):
+        month = None
+        # A day without a known month is not a usable level of precision.
+        day = None
+    else:
+        month = int(month_text)
+        if not 1 <= month <= 12:
+            return None
+
+        if day_text in (None, '??', '00'):
+            day = None
+        else:
+            day = int(day_text)
+            if not 1 <= day <= 31:
+                return None
+
+    try:
+        return DateWrapper(year, month, day)
+    except (TypeError, ValueError, OverflowError):
+        # This also catches impossible calendar dates such as 2015-02-30.
+        return None
 
 
 class OldestDatePlugin(BeetsPlugin):
@@ -770,12 +840,15 @@ class OldestDatePlugin(BeetsPlugin):
 
             date_string = rec.get('begin')
             if date_string:
-                try:
-                    date = DateWrapper(iso_string=date_string)
-                    if date < oldest_date:
-                        oldest_date = date
-                except ValueError:
-                    self._log.error('Could not parse date {0} for recording {1}', date_string, rec)
+                date = _parse_musicbrainz_date(date_string)
+                if date is None:
+                    self._log.debug(
+                        'Ignoring unusable MusicBrainz recording date %r for %r',
+                        date_string,
+                        rec,
+                    )
+                elif date < oldest_date:
+                    oldest_date = date
 
             if approach == 'recordings' or (
                     approach == 'hybrid' and oldest_date != starting_date):
@@ -855,16 +928,15 @@ class OldestDatePlugin(BeetsPlugin):
                 if not release_date:
                     continue
 
-                try:
-                    date = DateWrapper(iso_string=release_date)
-                    if date < oldest_date:
-                        oldest_date = date
-                except ValueError:
-                    self._log.error(
-                        'Could not parse date {0} for recording {1}',
+                date = _parse_musicbrainz_date(release_date)
+                if date is None:
+                    self._log.debug(
+                        'Ignoring unusable MusicBrainz release date %r for %r',
                         release_date,
                         rec,
                     )
+                elif date < oldest_date:
+                    oldest_date = date
 
             self._recordings_cache.pop(rec_id, None)
 
