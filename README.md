@@ -27,7 +27,13 @@ necessary. The plugin is intended to be used in singleton mode. Undefined behavi
 |     release_types      |     None      |                                                                                                Filter releases by type, e.g. `['Official']`. Usually not needed                                                                                                |
 |     use_file_date      |     False     |                                                                                               Use the file's embedded date too when looking for the oldest date                                                                                                |
 |  max_network_retries   |       3       |                                                                           Maximum amount of times a given network call will be retried, using exponential backoff, before giving up.                                                                           |
-
+|      show_progress     |      no       |                                                                                                                         Displays phase/progress lines
+|     progress_every     |       1       |                                                                                                               Prints scan status every ten related recordings
+| max_related_recordings |      200      |                                                                                                     Limits a giant MusicBrainz work instead of crawling it indefinitely
+|    max_scan_seconds    |      120      |                                                                                                             Gives each track up to two minutes before skipping it
+|    request_timeout     |      20       |                                                                                                      	Limits a stalled MusicBrainz socket request to 20 seconds
+|    network_retries     |       2       |                                                                                                            	Two visible attempts per MusicBrainz request
+|   minimum_file_year    |     1000      |                                                                                                  	Treats 0, blank, and absurdly old embedded years as unknown
 ## Optimal Configuration
 
     musicbrainz:
@@ -45,6 +51,13 @@ necessary. The plugin is intended to be used in singleton mode. Undefined behavi
       overwrite_day: yes
       filter_recordings: yes
       approach: 'releases'
+	  show_progress: no  #yes will show what is going on in the background.
+	  progress_every: 1  #will show how many lines of what is going on, 1 to show it all
+	  max_related_recordings: 200 #Skips anything above this for a giant MusicBrainz work instead of crawling it indefinitely
+	  max_scan_seconds: 120 #Gives each track up to two minutes before skipping it
+	  request_timeout: 20 #Limits a stalled MusicBrainz socket request to 20 seconds
+	  network_retries: 2 #Two visible attempts per MusicBrainz request
+	  minimum_file_year: 1000 #Treats `0`, blank, and absurdly old embedded years as unknown   
 
 ## How it works
 
